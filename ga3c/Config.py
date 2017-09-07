@@ -30,7 +30,7 @@ class Config:
     # Game configuration
 
     # Name of the game, with version (e.g. PongDeterministic-v0)
-    ATARI_GAME = 'PongDeterministic-v0'
+    ATARI_GAME = 'vizdoom'
 
     # Enable to see the trained agent in action
     PLAY_MODE = False
@@ -46,7 +46,7 @@ class Config:
     
     # If the dynamic configuration is on, these are the initial values.
     # Number of Agents
-    AGENTS = 32 
+    AGENTS = 24 
     # Number of Predictors
     PREDICTORS = 2
     # Number of Trainers
@@ -114,7 +114,7 @@ class Config:
     # Log and save
 
     # Enable TensorBoard
-    TENSORBOARD = False
+    TENSORBOARD = True
     # Update TensorBoard every X training steps
     TENSORBOARD_UPDATE_FREQUENCY = 1000
 
