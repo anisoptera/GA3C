@@ -46,17 +46,25 @@ class ThreadPredictor(Thread):
             (Config.PREDICTION_BATCH_SIZE, Config.IMAGE_HEIGHT, Config.IMAGE_WIDTH, Config.STACKED_FRAMES),
             dtype=np.float32)
 
+        rnn_state_size = np.shape(self.server.model.state_in[0])
+        print(rnn_state_size)
+
+        rnn_states = np.zeros((Config.PREDICTION_BATCH_SIZE, ) + np.shape(self.server.model.state_init))
+
         while not self.exit_flag:
-            ids[0], states[0] = self.server.prediction_q.get()
+            ids[0], rnn_states[0], states[0] = self.server.prediction_q.get()
 
             size = 1
-            while size < Config.PREDICTION_BATCH_SIZE and not self.server.prediction_q.empty():
-                ids[size], states[size] = self.server.prediction_q.get()
+            while size < Config.PREDICTION_BATCH_SIZE and (size < 4 or not self.server.prediction_q.empty()):
+                ids[size], rnn_states[size], states[size] = self.server.prediction_q.get()
                 size += 1
 
             batch = states[:size]
-            p, v = self.server.model.predict_p_and_v(batch)
+            rnn_state_batch = rnn_states[:size]
+            p, v, s = self.server.model.predict_p_and_v(batch, rnn_state_batch)
+            # needs to be batch-major again
+            s = np.swapaxes(s, 0, 1)
 
             for i in range(size):
                 if ids[i] < len(self.server.agents):
-                    self.server.agents[ids[i]].wait_q.put((p[i], v[i]))
+                    self.server.agents[ids[i]].wait_q.put((s[i], p[i], v[i]))

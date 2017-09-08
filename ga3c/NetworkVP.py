@@ -46,6 +46,7 @@ class NetworkVP:
         self.beta = Config.BETA_START
         self.log_epsilon = Config.LOG_EPSILON
 
+
         self.graph = tf.Graph()
         with self.graph.as_default() as g:
             with tf.device(self.device):
@@ -87,10 +88,13 @@ class NetworkVP:
         self.flat = tf.reshape(_input, shape=[-1, nb_elements._value])
         self.d1 = self.dense_layer(self.flat, 256, 'dense1')
 
-        self.logits_v = tf.squeeze(self.dense_layer(self.d1, 1, 'logits_v', func=None), axis=[1])
+        # well, not entirely :)
+        self.state_init, self.state_in, self.state_out, self.rnn = self.lstm_layer(self.d1, 256, 'rnn1')
+
+        self.logits_v = tf.squeeze(self.dense_layer(self.rnn, 1, 'logits_v', func=None), axis=[1])
         self.cost_v = 0.5 * tf.reduce_sum(tf.square(self.y_r - self.logits_v), axis=0)
 
-        self.logits_p = self.dense_layer(self.d1, self.num_actions, 'logits_p', func=None)
+        self.logits_p = self.dense_layer(self.rnn, self.num_actions, 'logits_p', func=None)
         if Config.USE_LOG_SOFTMAX:
             self.softmax_p = tf.nn.softmax(self.logits_p)
             self.log_softmax_p = tf.nn.log_softmax(self.logits_p)
@@ -171,7 +175,8 @@ class NetworkVP:
 
         summaries.append(tf.summary.histogram("activation_n1", self.n1))
         summaries.append(tf.summary.histogram("activation_n2", self.n2))
-        summaries.append(tf.summary.histogram("activation_d2", self.d1))
+        summaries.append(tf.summary.histogram("activation_d1", self.d1))
+        summaries.append(tf.summary.histogram("activation_rnn", self.rnn))
         summaries.append(tf.summary.histogram("activation_v", self.logits_v))
         summaries.append(tf.summary.histogram("activation_p", self.softmax_p))
 
@@ -211,6 +216,42 @@ class NetworkVP:
 
         return output
 
+    # TODO: maybe we'd like more than one of these?
+    # if so we should definitely keep the rnn state in a single numpy array.
+    def lstm_layer(self, input, out_dim, name):
+        in_dim = input.get_shape().as_list()[-1]
+        with tf.variable_scope(name):
+            batch_size = tf.shape(input)[0]
+            lstm_cell = tf.nn.rnn_cell.BasicLSTMCell(out_dim)
+            if (lstm_cell.state_size.c != lstm_cell.state_size.h):
+                raise AssertionError("State sizes not equal, how'd you do it?")
+            state_init = np.zeros((1, 2, lstm_cell.state_size.c), np.float32)
+            c_in = tf.placeholder(tf.float32, [None, lstm_cell.state_size.c])
+            h_in = tf.placeholder(tf.float32, [None, lstm_cell.state_size.h])
+            state_in = (c_in, h_in)
+            rnn_in = tf.expand_dims(input, [0])
+            my_state_in = tf.nn.rnn_cell.LSTMStateTuple(c_in, h_in)
+            step_sizes = tf.fill([batch_size], tf.constant(1))
+            lstm_outputs, lstm_state = tf.nn.dynamic_rnn(
+                lstm_cell, rnn_in, initial_state=my_state_in, sequence_length=step_sizes,
+                time_major=True)
+            lstm_c, lstm_h = lstm_state
+            state_out = (lstm_c, lstm_h)
+            rnn_out = tf.reshape(lstm_outputs, [batch_size, out_dim])
+
+        return state_init, state_in, state_out, rnn_out
+
+    # rnn_state is (batch, layers, [c|h], states)
+    def get_lstm_feed_dict(self, rnn_state):
+        ch_major = np.swapaxes(rnn_state, 2, 0)
+        # now (ch, layers, batch, states)
+        c_states = ch_major[0][0]
+        h_states = ch_major[1][0]
+        return { self.state_in[0]: c_states, self.state_in[1]: h_states }
+
+    def wrap_lstm_state(self, rnn_state):
+        pass
+
     def __get_base_feed_dict(self):
         return {self.var_beta: self.beta, self.var_learning_rate: self.learning_rate}
 
@@ -229,8 +270,11 @@ class NetworkVP:
         prediction = self.sess.run(self.softmax_p, feed_dict={self.x: x})
         return prediction
     
-    def predict_p_and_v(self, x):
-        return self.sess.run([self.softmax_p, self.logits_v], feed_dict={self.x: x})
+    def predict_p_and_v(self, x, rnn_state):
+        feed_dict = self.get_lstm_feed_dict(rnn_state)
+        feed_dict.update({self.x: x})
+        return self.sess.run([self.softmax_p, self.logits_v, self.state_out],
+                             feed_dict=feed_dict)
     
     def train(self, x, y_r, a, trainer_id):
         feed_dict = self.__get_base_feed_dict()

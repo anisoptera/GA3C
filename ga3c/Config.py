@@ -37,7 +37,7 @@ class Config:
     # Enable to train
     TRAIN_MODELS = True
     # Load old models. Throws if the model doesn't exist
-    LOAD_CHECKPOINT = True
+    LOAD_CHECKPOINT = False
     # If 0, the latest checkpoint is loaded
     LOAD_EPISODE = 0 
 
@@ -78,7 +78,8 @@ class Config:
     PREDICTION_BATCH_SIZE = 128
 
     # Input of the DNN
-    STACKED_FRAMES = 4
+    # probably don't need stacked frames with RNN
+    STACKED_FRAMES = 1
     IMAGE_WIDTH = 84
     IMAGE_HEIGHT = 84
 

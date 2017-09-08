@@ -36,10 +36,11 @@ from Experience import Experience
 
 
 class ProcessAgent(Process):
-    def __init__(self, id, prediction_q, training_q, episode_log_q):
+    def __init__(self, id, initial_nn_state, prediction_q, training_q, episode_log_q):
         super(ProcessAgent, self).__init__()
 
         self.id = id
+        self.initial_nn_state = initial_nn_state
         self.prediction_q = prediction_q
         self.training_q = training_q
         self.episode_log_q = episode_log_q
@@ -70,9 +71,9 @@ class ProcessAgent(Process):
 
     def predict(self, state):
         # put the state in the prediction q
-        self.prediction_q.put((self.id, state))
+        self.prediction_q.put((self.id, self.nn_state, state))
         # wait for the prediction to come back
-        p, v = self.wait_q.get()
+        self.nn_state, p, v = self.wait_q.get()
         return p, v
 
     def select_action(self, prediction):
@@ -89,6 +90,8 @@ class ProcessAgent(Process):
 
         time_count = 0
         reward_sum = 0.0
+
+        self.nn_state = np.asarray(self.initial_nn_state)
 
         while not done:
             # very first few frames
