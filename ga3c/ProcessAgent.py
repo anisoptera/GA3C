@@ -67,7 +67,8 @@ class ProcessAgent(Process):
         x_ = np.array([exp.state for exp in experiences])
         a_ = np.eye(self.num_actions)[np.array([exp.action for exp in experiences])].astype(np.float32)
         r_ = np.array([exp.reward for exp in experiences])
-        return x_, r_, a_
+        s_ = np.array([exp.rnn_state for exp in experiences])
+        return x_, r_, a_, s_
 
     def predict(self, state):
         # put the state in the prediction q
@@ -103,15 +104,15 @@ class ProcessAgent(Process):
             action = self.select_action(prediction)
             reward, done = self.env.step(action)
             reward_sum += reward
-            exp = Experience(self.env.previous_state, action, prediction, reward, done)
+            exp = Experience(self.env.previous_state, self.nn_state, action, prediction, reward,  done)
             experiences.append(exp)
 
             if done or time_count == Config.TIME_MAX:
                 terminal_reward = 0 if done else value
 
                 updated_exps = ProcessAgent._accumulate_rewards(experiences, self.discount_factor, terminal_reward)
-                x_, r_, a_ = self.convert_data(updated_exps)
-                yield x_, r_, a_, reward_sum
+                x_, r_, a_, s_ = self.convert_data(updated_exps)
+                yield x_, r_, a_, s_, reward_sum
 
                 # reset the tmax count
                 time_count = 0
@@ -131,10 +132,10 @@ class ProcessAgent(Process):
         while self.exit_flag.value == 0:
             total_reward = 0
             total_length = 0
-            for x_, r_, a_, reward_sum in self.run_episode():
+            for x_, r_, a_, s_, reward_sum in self.run_episode():
                 total_reward += reward_sum
                 total_length += len(r_) + 1  # +1 for last frame that we drop
-                self.training_q.put((x_, r_, a_))
+                self.training_q.put((x_, r_, a_, s_))
             self.episode_log_q.put((datetime.now(), total_reward, total_length))
 
             # Make a gif if we're the first worker and we should do that

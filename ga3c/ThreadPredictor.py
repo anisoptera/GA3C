@@ -47,7 +47,6 @@ class ThreadPredictor(Thread):
             dtype=np.float32)
 
         rnn_state_size = np.shape(self.server.model.state_in[0])
-        print(rnn_state_size)
 
         rnn_states = np.zeros((Config.PREDICTION_BATCH_SIZE, ) + np.shape(self.server.model.state_init))
 

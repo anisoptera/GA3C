@@ -241,12 +241,22 @@ class NetworkVP:
 
         return state_init, state_in, state_out, rnn_out
 
-    # rnn_state is (batch, layers, [c|h], states)
     def get_lstm_feed_dict(self, rnn_state):
-        ch_major = np.swapaxes(rnn_state, 2, 0)
-        # now (ch, layers, batch, states)
-        c_states = ch_major[0][0]
-        h_states = ch_major[1][0]
+        rank = len(np.shape(rnn_state))
+        if rank == 3:
+            # batch-major, let's fix that
+            ch_major = np.swapaxes(rnn_state, 0, 1)
+            c_states = ch_major[0]
+            h_states = ch_major[1]
+        elif rank == 4:
+            # shape is (batch, layers, [c|h], states)
+            ch_major = np.swapaxes(rnn_state, 2, 0)
+            # now (ch, layers, batch, states)
+            c_states = ch_major[0][0]
+            h_states = ch_major[1][0]
+        else:
+            raise AssertionError('wrong size for rnn_state')
+
         return { self.state_in[0]: c_states, self.state_in[1]: h_states }
 
     def wrap_lstm_state(self, rnn_state):
@@ -276,8 +286,9 @@ class NetworkVP:
         return self.sess.run([self.softmax_p, self.logits_v, self.state_out],
                              feed_dict=feed_dict)
     
-    def train(self, x, y_r, a, trainer_id):
+    def train(self, x, y_r, a, rnn_state, trainer_id):
         feed_dict = self.__get_base_feed_dict()
+        feed_dict.update(self.get_lstm_feed_dict(rnn_state))
         feed_dict.update({self.x: x, self.y_r: y_r, self.action_index: a})
         self.sess.run(self.train_op, feed_dict=feed_dict)
 
