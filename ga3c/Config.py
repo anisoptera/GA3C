@@ -37,7 +37,7 @@ class Config:
     # Enable to train
     TRAIN_MODELS = True
     # Load old models. Throws if the model doesn't exist
-    LOAD_CHECKPOINT = False
+    LOAD_CHECKPOINT = True
     # If 0, the latest checkpoint is loaded
     LOAD_EPISODE = 0 
 
@@ -46,11 +46,11 @@ class Config:
     
     # If the dynamic configuration is on, these are the initial values.
     # Number of Agents
-    AGENTS = 24 
+    AGENTS = 30
     # Number of Predictors
-    PREDICTORS = 2
+    PREDICTORS = 1
     # Number of Trainers
-    TRAINERS = 2
+    TRAINERS = 10
 
     # Device
     DEVICE = 'gpu:0'
@@ -122,9 +122,15 @@ class Config:
     SAVE_MODELS = True
     # Save every SAVE_FREQUENCY episodes
     SAVE_FREQUENCY = 1000
+
+    # Enable to save gifs of experiences every GIF_FREQUENCY episodes
+    # (tracked locally, on worker 0, so actually this is every ~(GIF_FREQUENCY * NUM_AGENTS) episodes)
+    SAVE_GIFS = True
+    GIF_FREQUENCY = 100
+    GIF_DIR = 'gifs'
     
     # Print stats every PRINT_STATS_FREQUENCY episodes
-    PRINT_STATS_FREQUENCY = 1
+    PRINT_STATS_FREQUENCY = 10
     # The window to average stats
     STAT_ROLLING_MEAN_WINDOW = 1000
 

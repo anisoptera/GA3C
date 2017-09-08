@@ -46,6 +46,8 @@ class Environment:
         self.current_state = None
         self.total_reward = 0
 
+        self.this_experience = []
+
         self.reset()
 
     @staticmethod
@@ -73,6 +75,7 @@ class Environment:
             self.frame_q.get()
         image = Environment._preprocess(frame)
         self.frame_q.put(image)
+        self.this_experience.append(image)
 
     def get_num_actions(self):
         return self.game.num_actions()
@@ -82,6 +85,7 @@ class Environment:
         self.frame_q.queue.clear()
         self._update_frame_q(self.game.reset())
         self.previous_state = self.current_state = None
+        self.this_experience = []
 
     def step(self, action):
         observation, reward, done, _ = self.game.step(action)
@@ -92,3 +96,39 @@ class Environment:
         self.previous_state = self.current_state
         self.current_state = self._get_current_state()
         return reward, done
+
+    def make_gif(self, fname, duration=2, true_image=False,salience=False,salIMGS=None):
+        import imageio
+        imageio.plugins.ffmpeg.download()
+        import moviepy.editor as mpy
+
+        images = self.this_experience
+
+        def make_frame(t):
+            try:
+                x = images[int(len(images)/duration*t)]
+            except:
+                x = images[-1]
+
+            if true_image:
+                return x.astype(np.uint8)
+            else:
+                return ((x+1)/2*255).astype(np.uint8)
+
+        def make_mask(t):
+            try:
+                x = salIMGS[int(len(salIMGS)/duration*t)]
+            except:
+                x = salIMGS[-1]
+            return x
+
+        clip = mpy.VideoClip(make_frame, duration=duration)
+        if salience == True:
+            mask = mpy.VideoClip(make_mask, ismask=True,duration= duration)
+            clipB = clip.set_mask(mask)
+            clipB = clip.set_opacity(0)
+            mask = mask.set_opacity(0.1)
+            mask.write_gif(fname, fps = len(images) / duration,verbose=False)
+            #clipB.write_gif(fname, fps = len(images) / duration,verbose=False)
+        else:
+            clip.write_gif(fname, fps = len(images) / duration,verbose=False)

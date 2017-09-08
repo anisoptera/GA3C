@@ -123,6 +123,8 @@ class ProcessAgent(Process):
         time.sleep(np.random.rand())
         np.random.seed(np.int32(time.time() % 1 * 1000 + self.id * 10))
 
+        episode_count = 0
+
         while self.exit_flag.value == 0:
             total_reward = 0
             total_length = 0
@@ -131,3 +133,9 @@ class ProcessAgent(Process):
                 total_length += len(r_) + 1  # +1 for last frame that we drop
                 self.training_q.put((x_, r_, a_))
             self.episode_log_q.put((datetime.now(), total_reward, total_length))
+
+            # Make a gif if we're the first worker and we should do that
+            if self.id == 0 and episode_count != 0 and episode_count % Config.GIF_FREQUENCY == 0:
+                self.env.make_gif("%s/ep_%i.gif" % (Config.GIF_DIR,episode_count))
+
+            episode_count += 1
